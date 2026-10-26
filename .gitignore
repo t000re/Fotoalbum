@@ -1,0 +1,16 @@
+.build/
+dist/
+.DS_Store
+.swiftpm/
+
+# Bildene dine hører ikke hjemme i repoet (skanninger, kopier med metadata, eksporter).
+Amerika utvalg*/
+*.jpg
+*.jpeg
+*.JPG
+*.png
+*.tif
+*.tiff
+*.heic
+*.HEIC
+*.pdf
