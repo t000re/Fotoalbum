@@ -39,6 +39,9 @@ Test med genererte testbilder og `FOTOALBUM_BIBLIOTEK=<testmappe>`, så det ekte
 - Arkiv > «Eksporter kopier med dato og sted» (⇧⌘E): kopier i en ny mappe med navn som
   `220714_yosemite-national-park_01.jpg` (nummerert i tidsrekkefølge) og dato/tid (EXIF), GPS,
   stedsnavn og beskrivelse (IPTC) i bildet. Bildedataene kopieres uendret. Originalene røres ikke.
+  IPTC: sted (Sublocation), region (Province/State), land (navn på norsk + kode); søkeord = sted,
+  region, land. Bilder med bare region får region og land (uten GPS), filnavn etter regionen.
+  Tidssone: iPhone-bildets, ellers slått opp hos Apple for regionen/landet (med sommertid).
 
 ## Matching (dato og sted)
 - Stort bilde av det analoge bildet, ved siden av en stripe med iPhone-bilder fra turen sortert på tid
@@ -155,8 +158,8 @@ Kilder: Blurbs «PDF to Book specifications and checklist» (support.blurb.com) 
   formen, iPhone-bildene og «Like bilder» er bare innenfor, stedsforslag (brukte/turen) bare
   innenfor, Apple-søket prioriterer området, datoforslag uten sted = dager med iPhone-bilder i området. Bilder-visningen har et
   Område-felt; lista viser område i stedsoverskriftene. Boka: «Bildetekst» = Område · Sted / bare
-  område / bare sted. Oversikt > Steder har Områder (nytt navn/slå sammen). Kopier får område og
-  sted som IPTC-søkeord.
+  område / bare sted. Oversikt > Steder har Områder (nytt navn/slå sammen). (Område er fjernet
+  fra eksporten.)
 - Områdeforslag fra kartet: geografiske regioner punktet ligger i (Natural Earth 1:10m
   geography_regions, forenklet med `tools/make-regions.py` til `Resources/usa-regions.json`),
   nasjonalpark/-skog fra Apples stedsoppslag (engelsk), og delstaten. Rekkefølge: rullen, brukt i

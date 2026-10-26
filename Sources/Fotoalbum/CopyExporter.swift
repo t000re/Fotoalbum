@@ -12,6 +12,8 @@ enum CopyExporter {
         let source: URL
         let name: String
         let info: PhotoInfo
+        /// Tidssonen for bildets region/land (slått opp før eksporten), når bildet ikke har sin egen.
+        var zoneHint: String? = nil
     }
 
     // MARK: Filnavn
@@ -25,7 +27,7 @@ enum CopyExporter {
             let i = info(id)
             let base: String
             if let day = i.day {
-                let place = slug(i.place?.name ?? i.area ?? "")
+                let place = slug(i.place?.name ?? i.regionCode.flatMap { World.region(code: $0)?.name } ?? "")
                 base = String(format: "%02d%02d%02d", day.year % 100, day.month, day.day) + "_" + (place.isEmpty ? "ukjent-sted" : place)
             } else {
                 base = "udatert_" + slug((id as NSString).deletingPathExtension)
@@ -79,7 +81,7 @@ enum CopyExporter {
         try? FileManager.default.removeItem(at: target)
         guard let destination = CGImageDestinationCreateWithURL(target as CFURL, type, 1, nil) else { return false }
         let options: [CFString: Any] = [
-            kCGImageDestinationMetadata: metadata(for: item.info),
+            kCGImageDestinationMetadata: metadata(for: item.info, zoneHint: item.zoneHint),
             kCGImageDestinationMergeMetadata: true,
         ]
         var error: Unmanaged<CFError>?
@@ -87,19 +89,23 @@ enum CopyExporter {
     }
 
     /// Dato og klokkeslett (EXIF), GPS, stedsnavn og beskrivelse (IPTC), slik Bilder og Lightroom leser dem.
-    private static func metadata(for info: PhotoInfo) -> CGImageMetadata {
+    private static func metadata(for info: PhotoInfo, zoneHint: String?) -> CGImageMetadata {
         let meta = CGImageMetadataCreateMutable()
         func set(_ dictionary: CFString, _ key: CFString, _ value: Any) {
             CGImageMetadataSetValueMatchingImageProperty(meta, dictionary, key, value as CFTypeRef)
         }
 
         if let day = info.day {
-            // Klokkeslett fra iPhone-bildet i omtrent lokal tid der bildet ble tatt; ellers kl. 12.
-            var zone = TimeZone(identifier: "America/Denver")!
-            if let id = info.timeZone, let exact = TimeZone(identifier: id) {
+            // Klokkeslett fra iPhone-bildet i lokal tid der bildet ble tatt; ellers kl. 12.
+            // Tidssone: fra stedsoppslaget, ellers omtrentlig fra kartpunktet, regionen eller landet.
+            var zone = TimeZone.current
+            if let id = info.timeZone ?? zoneHint, let exact = TimeZone(identifier: id) {
                 zone = exact
             } else if let lat = info.place?.latitude, let lon = info.place?.longitude {
                 zone = PhoneLibrary.approximateZone(CLLocationCoordinate2D(latitude: lat, longitude: lon))
+            } else if let area = info.regionCode.flatMap({ World.region(code: $0) }) ?? info.countryCode.flatMap({ World.country(code: $0) }) {
+                zone = PhoneLibrary.approximateZone(CLLocationCoordinate2D(latitude: (area.minLat + area.maxLat) / 2,
+                                                                           longitude: (area.minLon + area.maxLon) / 2))
             }
             var dateText = String(format: "%04d:%02d:%02d 12:00:00", day.year, day.month, day.day)
             if let time = info.time {
@@ -128,16 +134,23 @@ enum CopyExporter {
             }
             if !place.name.isEmpty {
                 set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCSubLocation, place.name)
-                set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCCountryPrimaryLocationName, "USA")
             }
         }
 
-        // Område og sted som søkeord, så bildene kan finnes på «Blue Ridge Mountains» i Bilder/Lightroom.
-        let keywords = [info.area, info.place?.name].compactMap { $0 }.filter { !$0.isEmpty }
-        if !keywords.isEmpty { set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCKeywords, keywords) }
-        if info.place == nil, let area = info.area, !area.isEmpty {
-            set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCSubLocation, area)
+        // Region (delstat, fylke, provins) og land – også for bilder som bare har region.
+        let regionName = info.regionCode.flatMap { World.region(code: $0)?.name }
+        let countryCode = info.countryCode ?? info.regionCode.flatMap { World.region(code: $0)?.country }
+        let countryName = countryCode.map(World.countryName)
+        if let regionName { set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCProvinceState, regionName) }
+        if let countryName { set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCCountryPrimaryLocationName, countryName) }
+        if let countryCode { set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCCountryPrimaryLocationCode, countryCode) }
+
+        // Sted, region og land som søkeord, så bildene kan finnes på «Texas» eller «USA» i Bilder/Lightroom.
+        var keywords: [String] = []
+        for word in [info.place?.name, regionName, countryName].compactMap({ $0 }) where !word.isEmpty && !keywords.contains(word) {
+            keywords.append(word)
         }
+        if !keywords.isEmpty { set(kCGImagePropertyIPTCDictionary, kCGImagePropertyIPTCKeywords, keywords) }
 
         let caption = info.caption.trimmingCharacters(in: .whitespacesAndNewlines)
         if !caption.isEmpty {

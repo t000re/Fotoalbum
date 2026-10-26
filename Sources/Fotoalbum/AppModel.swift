@@ -89,6 +89,8 @@ final class AppModel {
     @ObservationIgnored var regionCheckQueue: [(id: String, point: GeoPoint)] = []
     @ObservationIgnored var regionCheckRunning = false
     @ObservationIgnored var geocodedRegions: [String: RegionPair] = [:]
+    /// Tidssone per region/land for eksporten (se AppModel+Copies.swift).
+    @ObservationIgnored var exportZoneCache: [String: String] = [:]
     /// Landene på turen (se visitedCountries), husket per rutelengde.
     @ObservationIgnored var visitedCountryCache: (count: Int, countries: Set<String>)?
     /// iPhone-biblioteket (settes ved oppstart), til forslagene i fokusmodus.
