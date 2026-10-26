@@ -51,7 +51,8 @@ private struct FocusStage: View {
 
     var body: some View {
         let focus = model.focus
-        let id = focus.current!
+        // Kan mangle et øyeblikk (f.eks. når et nytt, tomt prosjekt lages), før visningen byttes ut.
+        let id = focus.current ?? ""
         ZStack {
             if let url = model.url(of: id) {
                 PhotoImage(url: url, maxPixels: 2400)
@@ -431,7 +432,10 @@ private struct FocusBrowse: View {
     /// Kart: ruten, området og bildets sted.
     private func map(shape: AreaShape?) -> some View {
         let place = model.focus.current.flatMap { model.info($0).place }
-        let point = place.flatMap { p in p.latitude.map { GeoPoint(lat: $0, lon: p.longitude!) } }
+        let point: GeoPoint? = place.flatMap { p in
+            guard let lat = p.latitude, let lon = p.longitude else { return nil }
+            return GeoPoint(lat: lat, lon: lon)
+        }
         return Map(position: $position) {
             if let route = model.project.route, route.count > 1 {
                 MapPolyline(coordinates: route.map { .init(latitude: $0.latitude, longitude: $0.longitude) })
