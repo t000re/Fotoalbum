@@ -75,6 +75,8 @@ struct PhotoInfo: Codable, Hashable {
     /// Fylles inn fra stedets kartpunkt; ellers fra det du velger i Region-steget.
     var regionCode: String?
     var countryCode: String?
+    /// Du har valgt regionen selv: den blir stående til stedet byttes.
+    var regionManual: Bool?
     var source: Source?
     /// iPhone-bildet dato og sted ble kopiert fra (Bilder-appens ID), så det kan markeres.
     var phoneID: String?

@@ -287,13 +287,8 @@ extension AppModel {
                 return
             }
             focus.browseRegion = code
-            // Bildet uten sted får regionen (med sted kommer regionen fra kartet).
-            if let code, info(id).place?.latitude == nil {
-                update(id) {
-                    if code.hasPrefix("land:") { $0.regionCode = nil; $0.countryCode = String(code.dropFirst(5)) }
-                    else { $0.regionCode = code; $0.countryCode = World.region(code: code)?.country }
-                }
-            }
+            // Regionen du velger, lagres på bildet og vinner over den fra kartpunktet.
+            if let code { setRegion(code, for: id) }
             loadFirstMissingStep(askRegion: false)
         case .place:
             let typed = focus.text.trimmingCharacters(in: .whitespaces)

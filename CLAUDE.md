@@ -192,6 +192,9 @@ Hele vinduet er fokusvisningen (FocusView.swift); Bilder- og Bok-visningene er s
   og oppslaget bruker nærmeste region innen ~30 km (f.eks. Ruby Beach → Washington). Et punkt hører
   også til regioner/land med grense innen 5 km (`World.filterCodes`), så bilder ved Rio Grande er både
   Texas og Mexico. iPhone-bilder uten GPS låner posisjonen til nærmeste bilde i tid (innen 3 timer).
+- Region du velger selv (`regionManual`) vinner over kartpunktet til stedet byttes. Nær grenser
+  (flere regioner innen 5 km) sjekkes regionen hos Apples stedsoppslag (AppModel+RegionCheck.swift),
+  én om gangen med pause; også for eksisterende bilder ved oppstart.
 - Område er tatt ut av fokusvisningen (bare Region og Sted). Eksisterende `area`-verdier ligger i
   dataene, men vises ikke; bildeteksten bruker bare stedet (med mindre «Bildetekst» settes i Bok).
 

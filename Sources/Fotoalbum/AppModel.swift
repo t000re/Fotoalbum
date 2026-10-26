@@ -85,6 +85,10 @@ final class AppModel {
     /// Lånt posisjon for iPhone-bilder uten GPS (nærmeste bilde i tid, innen 3 timer).
     @ObservationIgnored var borrowedPoints: [String: GeoPoint] = [:]
     var regionCacheVersion = 0
+    /// Bilder som venter på å få regionen sjekket hos Apple (nær grenser), og svar per kartpunkt.
+    @ObservationIgnored var regionCheckQueue: [(id: String, point: GeoPoint)] = []
+    @ObservationIgnored var regionCheckRunning = false
+    @ObservationIgnored var geocodedRegions: [String: RegionPair] = [:]
     /// Landene på turen (se visitedCountries), husket per rutelengde.
     @ObservationIgnored var visitedCountryCache: (count: Int, countries: Set<String>)?
     /// iPhone-biblioteket (settes ved oppstart), til forslagene i fokusmodus.
@@ -232,6 +236,9 @@ final class AppModel {
         redoStack = []
         if let folder = file.folder { loadPhotos(from: URL(fileURLWithPath: folder)) }
         backfillRegions()
+        for (id, info) in project.photos where info.regionManual != true {
+            if let lat = info.place?.latitude, let lon = info.place?.longitude { enqueueRegionCheck(id, at: GeoPoint(lat: lat, lon: lon)) }
+        }
         try? FileManager.default.createDirectory(at: Self.libraryFolder, withIntermediateDirectories: true)
         try? id.uuidString.write(to: Self.currentPointer, atomically: true, encoding: .utf8)
     }
@@ -325,12 +332,19 @@ final class AppModel {
         var i = info(id)
         let oldPoint = i.place.flatMap { p in p.latitude.map { ($0, p.longitude ?? 0) } }
         change(&i)
-        // Nytt kartpunkt: region og land fra kartet (stedet er fasit).
-        if let lat = i.place?.latitude, let lon = i.place?.longitude,
-           i.regionCode == nil || oldPoint == nil || oldPoint! != (lat, lon) {
-            Self.fillRegion(&i, at: GeoPoint(lat: lat, lon: lon))
+        // Nytt kartpunkt: region og land fra kartet. Har du valgt regionen selv, står den til stedet byttes.
+        var refine: GeoPoint?
+        if let lat = i.place?.latitude, let lon = i.place?.longitude {
+            let moved = oldPoint == nil || oldPoint! != (lat, lon)
+            if moved || (i.regionCode == nil && i.countryCode == nil) {
+                Self.fillRegion(&i, at: GeoPoint(lat: lat, lon: lon))
+                i.regionManual = nil
+                refine = GeoPoint(lat: lat, lon: lon)
+            }
         }
         project.photos[id] = i.isEmpty ? nil : i
+        // Nær en grense: sjekk delstaten hos Apple (grensene i appen er forenklet).
+        if let refine { enqueueRegionCheck(id, at: refine) }
         if let day = i.day { project.lastDay = day }
         if let place = i.place, !place.name.isEmpty {
             project.lastPlaceName = place.name

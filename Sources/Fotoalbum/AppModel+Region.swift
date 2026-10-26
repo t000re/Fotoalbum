@@ -26,12 +26,17 @@ extension AppModel {
     /// Velg region fra velgeren til høyre: blir filteret (og bildets region hvis det ikke har sted).
     func focusPickRegion(_ code: String?) {
         focus.browseRegion = code
-        guard let id = focus.current, info(id).place?.latitude == nil else { return }
-        update(id) {
-            if let code, code.hasPrefix("land:") { $0.regionCode = nil; $0.countryCode = String(code.dropFirst(5)) }
-            else { $0.regionCode = code; $0.countryCode = code.flatMap { World.region(code: $0)?.country } }
-        }
+        if let id = focus.current, let code { setRegion(code, for: id) }
         placeSearch.prefer(focusFilterShape?.region)
+    }
+
+    /// Setter regionen du har valgt (region eller «land:XX») på bildet. Den blir stående til stedet byttes.
+    func setRegion(_ code: String, for id: String) {
+        update(id) {
+            if code.hasPrefix("land:") { $0.regionCode = nil; $0.countryCode = String(code.dropFirst(5)) }
+            else { $0.regionCode = code; $0.countryCode = World.region(code: code)?.country }
+            $0.regionManual = true
+        }
     }
 
     /// Landene turen har vært i (fra ruten), så regioner der foreslås først når du skriver.
