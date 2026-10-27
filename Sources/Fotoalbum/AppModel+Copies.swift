@@ -5,7 +5,7 @@ import CoreLocation
 /// og metadata i bildet. Originalene røres ikke.
 extension AppModel {
     func exportCopies() {
-        guard let folder = project.folder.map(URL.init(fileURLWithPath:)), !photos.isEmpty else { return }
+        guard let folder = resolvedFolder(), !photos.isEmpty else { return }
         let panel = NSSavePanel()
         panel.title = "Eksporter kopier med dato og sted"
         panel.message = "Velg navn og plassering for en ny mappe med kopiene. Originalene endres ikke."

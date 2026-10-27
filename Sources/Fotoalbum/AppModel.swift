@@ -10,7 +10,7 @@ struct Photo: Identifiable, Hashable {
 }
 
 /// Appens tilstand: bildene i mappa, hvilket som er valgt, og infoen per bilde.
-/// Alt lagres automatisk i ~/Library/Application Support/Fotoalbum/Prosjekt.json.
+/// Alt lagres automatisk: prosjektene i iCloud Drive/Fotoalbum/Prosjekter (se AppModel+Sync.swift).
 @MainActor @Observable
 final class AppModel {
     enum Sorting: String, CaseIterable { case day = "Tid", roll = "Rull", filename = "Filnavn", similar = "Likhet" }
@@ -56,8 +56,8 @@ final class AppModel {
     var compareAsset: PHAsset?
 
     // Angre/gjør om for dato, sted og beskrivelse: tidligere utgaver av infoen per bilde.
-    @ObservationIgnored private var undoStack: [[String: PhotoInfo]] = []
-    @ObservationIgnored private var redoStack: [[String: PhotoInfo]] = []
+    @ObservationIgnored var undoStack: [[String: PhotoInfo]] = []
+    @ObservationIgnored var redoStack: [[String: PhotoInfo]] = []
     @ObservationIgnored private var lastUndoPush = Date.distantPast
     var canUndo: Bool { !undoStack.isEmpty }
     /// Alle valgte bilder (⌘-klikk og ⇧-klikk velger flere). Dato og sted settes på alle.
@@ -168,8 +168,8 @@ final class AppModel {
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Fotoalbum")
     }
-    /// Hvert prosjekt er en fil i Prosjekter-mappa: <id>.json.
-    nonisolated static var projectsFolder: URL { libraryFolder.appendingPathComponent("Prosjekter") }
+    /// Hvert prosjekt er en fil i Prosjekter-mappa: <id>.json. I iCloud Drive når det er slått på.
+    nonisolated static var projectsFolder: URL { iCloudProjects ?? localProjects }
     nonisolated static func projectURL(_ id: UUID) -> URL { projectsFolder.appendingPathComponent("\(id.uuidString).json") }
     /// Husker hvilket prosjekt som var åpent sist.
     nonisolated static var currentPointer: URL { libraryFolder.appendingPathComponent("Gjeldende prosjekt.txt") }
@@ -181,8 +181,16 @@ final class AppModel {
     var projectName: String { project.name ?? "Uten navn" }
 
     @ObservationIgnored var saveTask: Task<Void, Never>?
+    /// En endring venter på å bli lagret.
+    @ObservationIgnored var pendingSave = false
+    /// Prosjektfila slik den sist ble lest eller skrevet, så vi ser når en annen Mac har endret den.
+    @ObservationIgnored var lastDiskData: Data?
+    @ObservationIgnored var checkingDisk = false
+    /// Prosjektet har en mappe, men den finnes ikke på denne Mac-en (flyttet, eller ikke i iCloud Drive).
+    private(set) var folderMissing = false
 
     init() {
+        Self.copyProjectsToICloud()
         // Sist åpne prosjekt …
         if let text = try? String(contentsOf: Self.currentPointer, encoding: .utf8),
            let id = UUID(uuidString: text.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -205,7 +213,7 @@ final class AppModel {
 
     /// Leser en prosjektfil. Kan den ikke leses, tas en kopi før noe kan skrives over.
     nonisolated static func readProject(_ url: URL) -> ProjectFile? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = readData(url) else { return nil }
         do {
             return try JSONDecoder().decode(ProjectFile.self, from: data)
         } catch {
@@ -236,7 +244,9 @@ final class AppModel {
         focus.index = 0
         undoStack = []
         redoStack = []
-        if let folder = file.folder { loadPhotos(from: URL(fileURLWithPath: folder)) }
+        lastDiskData = Self.readData(Self.projectURL(id))
+        reloadPhotos()
+        translatePhoneIDs()
         backfillRegions()
         for (id, info) in project.photos where info.regionManual != true {
             if let lat = info.place?.latitude, let lon = info.place?.longitude { enqueueRegionCheck(id, at: GeoPoint(lat: lat, lon: lon)) }
@@ -271,6 +281,7 @@ final class AppModel {
     }
 
     func scheduleSave() {
+        pendingSave = true
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
@@ -281,11 +292,15 @@ final class AppModel {
 
     func saveNow() {
         saveTask?.cancel()
+        pendingSave = false
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
+            let data = try encoder.encode(project)
+            guard data != lastDiskData else { return }  // uendret: ingen grunn til å synke
             try FileManager.default.createDirectory(at: Self.projectsFolder, withIntermediateDirectories: true)
-            try encoder.encode(project).write(to: Self.projectURL(projectID), options: .atomic)
+            try Self.writeData(data, to: Self.projectURL(projectID))
+            lastDiskData = data
         } catch {
             NSLog("Kunne ikke lagre prosjektet: \(error)")
         }
@@ -299,11 +314,23 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.prompt = "Velg"
-        panel.message = "Velg mappa med de skannede bildene"
+        panel.message = "Velg mappa med de skannede bildene. Ligger den i iCloud Drive, finner de andre Mac-ene den også."
+        panel.directoryURL = resolvedFolder()?.deletingLastPathComponent() ?? Self.iCloudDrive
         guard panel.runModal() == .OK, let url = panel.url else { return }
         project.folder = url.path
-        loadPhotos(from: url)
+        reloadPhotos()
         saveNow()
+    }
+
+    /// Leser bildene i prosjektets mappe (slik den heter på denne Mac-en).
+    func reloadPhotos() {
+        if let folder = resolvedFolder() {
+            folderMissing = false
+            loadPhotos(from: folder)
+        } else {
+            folderMissing = project.folder != nil
+            photos = []
+        }
     }
 
     /// Leser bildefilene som ligger rett i mappa (ikke undermapper), sortert som i Finder.
@@ -428,6 +455,7 @@ final class AppModel {
                 if let place { $0.place = place }
                 $0.source = source
                 $0.phoneID = phoneID
+                $0.phoneCloudID = phoneID.flatMap(Self.cloudID(forPhone:))
                 $0.time = time
                 $0.timeZone = timeZone
             }

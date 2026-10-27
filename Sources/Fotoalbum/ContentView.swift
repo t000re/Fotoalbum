@@ -17,6 +17,14 @@ struct ContentView: View {
                 } actions: {
                     Button("Velg mappe …") { model.chooseFolder() }
                 }
+            } else if model.folderMissing {
+                ContentUnavailableView {
+                    Label("Finner ikke mappa med skanningene", systemImage: "folder.badge.questionmark")
+                } description: {
+                    Text("Prosjektet bruker «\(URL(fileURLWithPath: model.project.folder ?? "").lastPathComponent)», men den finnes ikke på denne Mac-en. Er den flyttet, så finn den igjen. Legg den i iCloud Drive, så finner de andre Mac-ene den også. Datoer, steder og beskrivelser er tatt vare på.")
+                } actions: {
+                    Button("Finn mappa …") { model.chooseFolder() }
+                }
             } else if phone.access == .unknown {
                 ContentUnavailableView {
                     Label("iPhone-bilder", systemImage: "iphone")

@@ -148,6 +148,12 @@ Kilder: Blurbs «PDF to Book specifications and checklist» (support.blurb.com) 
 - Prosjekter (Arkiv-menyen og mappeknappen øverst til venstre): nytt (⌘N), åpne, gi nytt navn, lagre
   kopi, ⌘S. Hvert prosjekt er Fotoalbum/Prosjekter/<id>.json; «Gjeldende prosjekt.txt» husker sist
   åpne. Den gamle Prosjekt.json ble lest inn som første prosjekt og ligger urørt.
+- iCloud-synk (AppModel+Sync.swift): prosjektfilene ligger i iCloud Drive/Fotoalbum/Prosjekter (første
+  gang kopiert fra Application Support, som blir liggende som reserve). Likhet-mellomlageret og «Gjeldende
+  prosjekt.txt» er per Mac. Endringer fra en annen Mac lastes inn når appen kommer fram og hvert 5. sekund;
+  en ulagret endring her vinner. Skanningsmappa finnes igjen i iCloud Drive/hjemmemappa på en annen Mac,
+  ellers «Finn mappa». iPhone-koblinger lagres også som iCloud-ID (`phoneCloudID`) og oversettes til
+  den lokale ID-en. Ved testing (FOTOALBUM_BIBLIOTEK) brukes ikke iCloud.
 
 - Område over sted (`area`, f.eks. Blue Ridge Mountains over Sylva). Et område er bildene du har gitt
   det; foreslås fra bildene rundt på rullen og områder brukt innen 100 km. Fokusmodus: Område → Sted

@@ -80,6 +80,8 @@ struct PhotoInfo: Codable, Hashable {
     var source: Source?
     /// iPhone-bildet dato og sted ble kopiert fra (Bilder-appens ID), så det kan markeres.
     var phoneID: String?
+    /// Samme iPhone-bilde som iCloud-ID, så koblingen virker på andre Mac-er (se AppModel+Sync.swift).
+    var phoneCloudID: String?
     /// Tidspunktet til iPhone-bildet (omtrent når det analoge bildet ble tatt). Brukes bare til
     /// rekkefølgen innen en dag og til hvor langt ruten på kartet har kommet.
     var time: Date?

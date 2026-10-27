@@ -97,7 +97,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor let similarity = SimilarityIndex()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated { model.similarity = similarity; model.phone = phone }
+        MainActor.assumeIsolated {
+            model.similarity = similarity
+            model.phone = phone
+            model.startWatchingForOutsideChanges()
+        }
         // Trengs når appen startes rett fra Terminal (uten .app rundt), så vinduet kommer fram.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
